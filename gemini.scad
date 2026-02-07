@@ -26,9 +26,13 @@
 piece_to_generate = "All"; // ["All", "Osho", "Gyokusho", "Hisha", "Kakugyo", "Kinsho", "Ginsho", "Keima", "Kyosha", "Fuhyo"]
 
 // --- Customization ---
-part_to_render = "Assembly (Preview)"; // ["Assembly (Preview)", "Piece Body (Solid)", "Unpromoted Text (Black)", "Promoted Text (Red)"]
+part_to_render = "Piece Body"; // ["Assembly (Preview)", "Piece Body", "Unpromoted Text (Black)", "Promoted Text (Red)"]
+create_recesses = true; // If true, the 'Piece Body' will have recessed text. If false, it will be a solid body for multi-material printing.
+text_recess_depth = 3;  // Depth of the text recess in millimeters.
+text_overlap_offset = 0.1; // Small offset to ensure full subtraction and avoid co-planar issues.
 text_vertical_adjust = 0; // [-5:0.1:5]
-font_name = "Noto Sans JP";
+two_char_vertical_spacing_factor = 0.7; // [0.5:0.01:1] Factor to adjust vertical spacing between two Kanji characters.
+font_name = "Hiragino Mincho ProN:style=W6";
 
 // --- Data ---
 PIECE_DATA = [
@@ -82,27 +86,45 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted) {
   module text_geometry_at_origin(is_promoted) {
     txt = is_promoted ? kanji_promoted : kanji_unpromoted;
     if (txt != "") {
-      text_depth = T * 0.45;
+      text_depth = text_recess_depth;
       face_angle = is_promoted ? ANGLE_SIDE_1 : ANGLE_SIDE_2;
-      rotate_angle = 90 - face_angle;
-      direction = is_promoted ? -1 : 1;
       
-      // Corrected rotation:
-      // 1. Rotate 90 around X to make text stand upright (from XY to XZ plane).
-      // 2. Rotate `direction * rotate_angle` around Y to tilt text parallel to the face.
-      rotate([90, 0, 0]) { // Make text upright
-        rotate([0, direction * rotate_angle, 0]) { // Tilt to match face angle
-          // Extrude from z=0 down to z=-text_depth in the rotated coordinate system.
+      // Angle to tilt the text from vertical to match the piece's face
+      tilt_angle = 90 - face_angle;
+      
+      // Rotation direction depends on which face is being rendered
+      direction = is_promoted ? -1 : 1;
+
+      // Apply rotations to correctly align the text with the angled face
+      rotate([direction * tilt_angle, 0, 0]) {
+        rotate([90, 0, 0]) { // Revert to 90 degrees for correct vertical orientation
+          // Extrude from z=0 down to z=-text_depth in the local system.
+          // This extrusion is now perpendicular to the angled text face.
           translate([0, 0, -text_depth]) {
-            linear_extrude(height = text_depth) {
-              // --- Vertical Text and Sizing Logic ---
-              if (len(txt) == 2) {
-                size = H * 0.3; spacing = size * 0.55;
-                translate([0,spacing,0]) text(str(txt[0]),size=size,font=font_name,halign="center",valign="center");
-                translate([0,-spacing,0]) text(str(txt[1]),size=size,font=font_name,halign="center",valign="center");
+            linear_extrude(height = text_depth, convexity = 10) {
+              // Apply horizontal flip only for the unpromoted (front) text
+              if (!is_promoted) {
+                rotate([0, 180, 0]) {
+                  // --- Vertical Text and Sizing Logic ---
+                  if (len(txt) == 2) {
+                    size = H * 0.3; spacing = size * two_char_vertical_spacing_factor;
+                    translate([0,spacing,0]) text(str(txt[0]),size=size,font=font_name,halign="center",valign="center");
+                    translate([0,-spacing,0]) text(str(txt[1]),size=size,font=font_name,halign="center",valign="center");
+                  } else {
+                    size = H * 0.35;
+                    text(txt,size=size,font=font_name,halign="center",valign="center");
+                  }
+                }
               } else {
-                size = H * 0.35;
-                text(txt,size=size,font=font_name,halign="center",valign="center");
+                // --- Vertical Text and Sizing Logic (for promoted text, no horizontal flip) ---
+                if (len(txt) == 2) {
+                  size = H * 0.3; spacing = size * two_char_vertical_spacing_factor;
+                  translate([0,spacing,0]) text(str(txt[0]),size=size,font=font_name,halign="center",valign="center");
+                  translate([0,-spacing,0]) text(str(txt[1]),size=size,font=font_name,halign="center",valign="center");
+                } else {
+                  size = H * 0.35;
+                  text(txt,size=size,font=font_name,halign="center",valign="center");
+                }
               }
             }
           }
@@ -113,10 +135,10 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted) {
 
   // Calculate the final [x,y,z] position for the text objects.
   z_pos = (H / 2.1) + text_vertical_adjust;
-  y_front = z_pos*(-1/tan(ANGLE_SIDE_2))+T/2;
-  y_back = z_pos*(1/tan(ANGLE_SIDE_1))-T/2;
-  pos_front = [0, y_front, z_pos];
-  pos_back = [0, y_back, z_pos];
+  y_front_surface = z_pos*(-1/tan(ANGLE_SIDE_2))+T/2 -1;
+  y_back_surface = z_pos*(1/tan(ANGLE_SIDE_1))-T/2 -2;
+  pos_front = [0, y_front_surface - text_overlap_offset, z_pos];
+  pos_back = [0, y_back_surface - text_overlap_offset, z_pos];
 
   // Render the selected part.
   if (part_to_render == "Assembly (Preview)") {
@@ -125,20 +147,22 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted) {
     color("goldenrod", 0.5) piece_body(W, H, T);
     color("black") translate(pos_front) text_geometry_at_origin(false);
     color("red") translate(pos_back) text_geometry_at_origin(true);
-  } else if (part_to_render == "Piece Body (Solid)") {
-    piece_body(W, H, T);
+  } else if (part_to_render == "Piece Body") {
+      if (create_recesses) {
+        // Render the piece with recessed text by subtracting the text geometry.
+        difference() {
+            piece_body(W,H,T);
+            translate(pos_front) text_geometry_at_origin(is_promoted = false);
+            translate(pos_back) text_geometry_at_origin(is_promoted = true);
+        }
+      } else {
+        // Render a solid body without text, for multi-material printing.
+        piece_body(W, H, T);
+      }
   } else if (part_to_render == "Unpromoted Text (Black)") {
     translate(pos_front) text_geometry_at_origin(false);
   } else if (part_to_render == "Promoted Text (Red)") {
     translate(pos_back) text_geometry_at_origin(true);
-  } else if (part_to_render == "Piece Body with Recesses") {
-    // This is for preview only and may fail to render due to CGAL errors.
-    // For printing, export the solid body and text parts separately.
-    difference() {
-        piece_body(W,H,T);
-        translate(pos_front) text_geometry_at_origin(is_promoted = false);
-        translate(pos_back) text_geometry_at_origin(is_promoted = true);
-    }
   }
 }
 
