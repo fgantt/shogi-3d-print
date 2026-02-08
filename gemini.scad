@@ -26,13 +26,32 @@
 piece_to_generate = "All"; // ["All", "Osho", "Gyokusho", "Hisha", "Kakugyo", "Kinsho", "Ginsho", "Keima", "Kyosha", "Fuhyo"]
 
 // --- Customization ---
-part_to_render = "Piece Body"; // ["Assembly (Preview)", "Piece Body", "Unpromoted Text (Black)", "Promoted Text (Red)"]
+part_to_render = "Piece Body"; // ["Assembly (Preview)", "Piece Body", "Unpromoted Text (Black)", "Promoted Text (Red)", "Base Text (Blue)"]
 create_recesses = true; // If true, the 'Piece Body' will have recessed text. If false, it will be a solid body for multi-material printing.
 text_recess_depth = 3;  // Depth of the text recess in millimeters.
 text_overlap_offset = 0.1; // Small offset to ensure full subtraction and avoid co-planar issues.
 text_vertical_adjust = 0; // [-5:0.1:5]
 two_char_vertical_spacing_factor = 0.7; // [0.5:0.01:1] Factor to adjust vertical spacing between two Kanji characters.
-font_name = "Hiragino Mincho ProN:style=W6";
+base_text_size_factor = 0.15; // [0.1:0.01:1] Factor for base text size relative to piece width.
+
+FONTS = [
+    ".Hiragino Sans GB Interface:style=W6", // 0
+    "Hina Mincho:style=Regular", // 1
+    "Hiragino Kaku Gothic ProN:style=W6", // 2
+    "Hiragino Maru Gothic ProN:style=W4", // 3
+    "Hiragino Mincho ProN:style=W6", // 4
+    "Hiragino Mincho ProN:style=W6", // 5
+    "Hiragino Sans GB:style=W6", // 6
+    "Hiragino Sans:style=W6", // 7
+    "IPAMincho:style=Regular", // 8
+    "Noto Sans JP:style=Bold", // 9
+    "Sawarabi Mincho:style=Regular", // 10
+    "Shippori Mincho:style=Bold", // 11
+    "Zen Kaku Gothic New:style=Bold", // 12
+    "Zen Old Mincho:style=Bold" // 13
+];
+
+font_name = FONTS[11];
 
 // --- Data ---
 PIECE_DATA = [
@@ -41,7 +60,7 @@ PIECE_DATA = [
   ["Fuhyo",27.0,22.0,7.5]
 ];
 KANJI_DATA = [
-  ["Osho","王將",""],["Gyokusho","玉將",""],["Hisha","飛車","龍王"],["Kakugyo","角行","龍馬"],["Kinsho","金將",""],
+  ["Osho","王將","", "岩斗作"],["Gyokusho","玉將","", "岩斗作"],["Hisha","飛車","龍王"],["Kakugyo","角行","龍馬"],["Kinsho","金將",""],
   ["Ginsho","銀將","成銀"],["Keima","桂馬","成桂"],["Kyosha","香車","成香"],["Fuhyo",    "歩兵", "と金"]
 ];
 ANGLE_FRONT_BOTTOM=81; ANGLE_FRONT_SIDE=117; ANGLE_SIDE_1=81; ANGLE_SIDE_2=85;
@@ -78,10 +97,10 @@ if (piece_to_generate == "All") {
 // --- Modules & Functions ---
 module shogi_piece_from_index(index) {
   d=PIECE_DATA[index]; k=KANJI_DATA[index];
-  shogi_piece(H=d[1],W=d[2],T=d[3],kanji_unpromoted=k[1],kanji_promoted=k[2]);
+  shogi_piece(H=d[1],W=d[2],T=d[3],kanji_unpromoted=k[1],kanji_promoted=k[2],kanji_base=len(k)>3?k[3]:"");
 }
 
-module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted) {
+module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted, kanji_base) {
   // This internal module creates the text geometry, rotated, at the origin.
   module text_geometry_at_origin(is_promoted) {
     txt = is_promoted ? kanji_promoted : kanji_unpromoted;
@@ -97,7 +116,7 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted) {
 
       // Apply rotations to correctly align the text with the angled face
       rotate([direction * tilt_angle, 0, 0]) {
-        rotate([90, 0, 0]) { // Revert to 90 degrees for correct vertical orientation
+        rotate([90, 0, 0]) { // Corrected initial rotation for vertical orientation
           // Extrude from z=0 down to z=-text_depth in the local system.
           // This extrusion is now perpendicular to the angled text face.
           translate([0, 0, -text_depth]) {
@@ -133,6 +152,22 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted) {
     }
   }
 
+  // This internal module creates the text geometry for the base of the piece.
+  module base_text_geometry(W, H, T, kanji_base) {
+    if (kanji_base != "") {
+      base_text_size = W * base_text_size_factor; // Adjust size based on piece width
+      // Text is initially on XY plane, then extruded down.
+      // Need to adjust text's y position relative to piece width and height.
+      // Assuming valign="center" puts text center at Y=0 of current system.
+      // The text will be extruded from Z=0 down to Z=-text_recess_depth.
+      translate([0, 0, 0]) { // Start at Z=0
+        linear_extrude(height = text_recess_depth, convexity = 10) {
+          text(kanji_base, size = base_text_size, font = font_name, halign = "center", valign = "center");
+        }
+      }
+    }
+  }
+
   // Calculate the final [x,y,z] position for the text objects.
   z_pos = (H / 2.1) + text_vertical_adjust;
   y_front_surface = z_pos*(-1/tan(ANGLE_SIDE_2))+T/2 -1;
@@ -147,6 +182,7 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted) {
     color("goldenrod", 0.5) piece_body(W, H, T);
     color("black") translate(pos_front) text_geometry_at_origin(false);
     color("red") translate(pos_back) text_geometry_at_origin(true);
+    color("blue", 0.5) base_text_geometry(W, H, T, kanji_base);
   } else if (part_to_render == "Piece Body") {
       if (create_recesses) {
         // Render the piece with recessed text by subtracting the text geometry.
@@ -154,6 +190,7 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted) {
             piece_body(W,H,T);
             translate(pos_front) text_geometry_at_origin(is_promoted = false);
             translate(pos_back) text_geometry_at_origin(is_promoted = true);
+            base_text_geometry(W, H, T, kanji_base);
         }
       } else {
         // Render a solid body without text, for multi-material printing.
@@ -163,8 +200,11 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted) {
     translate(pos_front) text_geometry_at_origin(false);
   } else if (part_to_render == "Promoted Text (Red)") {
     translate(pos_back) text_geometry_at_origin(true);
+  } else if (part_to_render == "Base Text (Blue)") {
+    color("blue") base_text_geometry(W, H, T, kanji_base);
   }
 }
+
 
 // Generates the solid outer body of the shogi piece using a polyhedron.
 // This method is robust and creates a clean, manifold mesh suitable for 3D printing.
