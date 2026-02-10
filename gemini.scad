@@ -61,7 +61,7 @@ PIECE_DATA = [
 ];
 KANJI_DATA = [
   ["Osho","王將","", "岩斗作"],["Gyokusho","玉將","", "岩斗作"],["Hisha","飛車","龍王"],["Kakugyo","角行","龍馬"],["Kinsho","金將",""],
-  ["Ginsho","銀將","成銀"],["Keima","桂馬","成桂"],["Kyosha","香車","成香"],["Fuhyo",    "歩兵", "と金"]
+  ["Ginsho","銀將","成銀"],["Keima","桂馬","成桂"],["Kyosha","香車","成香"],["Fuhyo",    "歩兵", "と"]
 ];
 ANGLE_FRONT_BOTTOM=81; ANGLE_FRONT_SIDE=117; ANGLE_SIDE_1=81; ANGLE_SIDE_2=85;
 
