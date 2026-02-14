@@ -23,7 +23,7 @@
 // =================================================
 
 // --- Parameters ---
-piece_to_generate = "All"; // ["All", "Osho", "Gyokusho", "Hisha", "Kakugyo", "Kinsho", "Ginsho", "Keima", "Kyosha", "Fuhyo"]
+piece_to_generate = "All"; // ["Osho", "Osho", "Gyokusho", "Hisha", "Kakugyo", "Kinsho", "Ginsho", "Keima", "Kyosha", "Fuhyo"]
 
 // --- Customization ---
 part_to_render = "Piece Body"; // ["Assembly (Preview)", "Piece Body", "Unpromoted Text (Black)", "Promoted Text (Red)", "Base Text (Blue)"]
@@ -32,7 +32,8 @@ text_recess_depth = 3;  // Depth of the text recess in millimeters.
 text_overlap_offset = 0.1; // Small offset to ensure full subtraction and avoid co-planar issues.
 text_vertical_adjust = 0; // [-5:0.1:5]
 two_char_vertical_spacing_factor = 0.7; // [0.5:0.01:1] Factor to adjust vertical spacing between two Kanji characters.
-base_text_size_factor = 0.15; // [0.1:0.01:1] Factor for base text size relative to piece width.
+base_text_size_factor = 0.20; // [0.1:0.01:1] Factor for base text size relative to piece width.
+sanding_offset = 0.2; // [0:0.01:1] Amount of material to add for sanding (uniform offset).
 
 FONTS = [
     ".Hiragino Sans GB Interface:style=W6", // 0
@@ -100,6 +101,17 @@ module shogi_piece_from_index(index) {
   shogi_piece(H=d[1],W=d[2],T=d[3],kanji_unpromoted=k[1],kanji_promoted=k[2],kanji_base=len(k)>3?k[3]:"");
 }
 
+module sanded_piece_body(W,H,T, offset_val) {
+  if (offset_val > 0) {
+    minkowski() {
+      piece_body(W,H,T);
+      sphere(r=offset_val);
+    }
+  } else {
+    piece_body(W,H,T);
+  }
+}
+
 module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted, kanji_base) {
   // This internal module creates the text geometry, rotated, at the origin.
   module text_geometry_at_origin(is_promoted) {
@@ -160,7 +172,8 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted, kanji_base) {
       // Need to adjust text's y position relative to piece width and height.
       // Assuming valign="center" puts text center at Y=0 of current system.
       // The text will be extruded from Z=0 down to Z=-text_recess_depth.
-      translate([0, 0, 0]) { // Start at Z=0
+      // The text will be extruded from Z=-sanding_offset down to Z=-sanding_offset - text_recess_depth.
+      translate([0, 0, sanding_offset * 2 - text_recess_depth]) {
         linear_extrude(height = text_recess_depth, convexity = 10) {
           text(kanji_base, size = base_text_size, font = font_name, halign = "center", valign = "center");
         }
@@ -170,7 +183,7 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted, kanji_base) {
 
   // Calculate the final [x,y,z] position for the text objects.
   z_pos = (H / 2.1) + text_vertical_adjust;
-  y_front_surface = z_pos*(-1/tan(ANGLE_SIDE_2))+T/2 -1;
+  y_front_surface = z_pos*(-1/tan(ANGLE_SIDE_2))+T/2 -.65;
   y_back_surface = z_pos*(1/tan(ANGLE_SIDE_1))-T/2 -2;
   pos_front = [0, y_front_surface - text_overlap_offset, z_pos];
   pos_back = [0, y_back_surface - text_overlap_offset, z_pos];
@@ -179,7 +192,7 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted, kanji_base) {
   if (part_to_render == "Assembly (Preview)") {
     // Show the solid body with the text parts overlapping.
     // Use transparency to see how they fit.
-    color("goldenrod", 0.5) piece_body(W, H, T);
+    color("goldenrod", 0.5) sanded_piece_body(W, H, T, sanding_offset);
     color("black") translate(pos_front) text_geometry_at_origin(false);
     color("red") translate(pos_back) text_geometry_at_origin(true);
     color("blue", 0.5) base_text_geometry(W, H, T, kanji_base);
@@ -187,14 +200,14 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted, kanji_base) {
       if (create_recesses) {
         // Render the piece with recessed text by subtracting the text geometry.
         difference() {
-            piece_body(W,H,T);
+            #sanded_piece_body(W,H,T, sanding_offset);
             translate(pos_front) text_geometry_at_origin(is_promoted = false);
             translate(pos_back) text_geometry_at_origin(is_promoted = true);
             base_text_geometry(W, H, T, kanji_base);
         }
       } else {
         // Render a solid body without text, for multi-material printing.
-        piece_body(W, H, T);
+        sanded_piece_body(W, H, T, sanding_offset);
       }
   } else if (part_to_render == "Unpromoted Text (Black)") {
     translate(pos_front) text_geometry_at_origin(false);
