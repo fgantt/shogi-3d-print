@@ -34,25 +34,27 @@ text_vertical_adjust = 0; // [-5:0.1:5]
 two_char_vertical_spacing_factor = 0.7; // [0.5:0.01:1] Factor to adjust vertical spacing between two Kanji characters.
 base_text_size_factor = 0.20; // [0.1:0.01:1] Factor for base text size relative to piece width.
 sanding_offset = 0.2; // [0:0.01:1] Amount of material to add for sanding (uniform offset).
+render_all_fonts = false; // [true, false] If true, renders all pieces with all available fonts, stacked vertically.
+font_row_spacing = 50; // [30:1:100] Vertical spacing between rows of pieces when rendering all fonts.
+font_choice = 11; // [0,1,2,3,4,5,6,7,8,9,10,11,12,13]
 
 FONTS = [
     ".Hiragino Sans GB Interface:style=W6", // 0
-    "Hina Mincho:style=Regular", // 1
+    "Hina Mincho:style=Regular", // 1 **
     "Hiragino Kaku Gothic ProN:style=W6", // 2
     "Hiragino Maru Gothic ProN:style=W4", // 3
-    "Hiragino Mincho ProN:style=W6", // 4
+    "Hiragino Mincho Pro:style=W6", // 4
     "Hiragino Mincho ProN:style=W6", // 5
     "Hiragino Sans GB:style=W6", // 6
     "Hiragino Sans:style=W6", // 7
     "IPAMincho:style=Regular", // 8
     "Noto Sans JP:style=Bold", // 9
     "Sawarabi Mincho:style=Regular", // 10
-    "Shippori Mincho:style=Bold", // 11
-    "Zen Kaku Gothic New:style=Bold", // 12
-    "Zen Old Mincho:style=Bold" // 13
+    "Shippori Mincho:style=Bold", // 11 **
+    "Shippori Mincho:style=Regular", // 12 **
+    "Zen Kaku Gothic New:style=Bold", // 13
+    "Zen Old Mincho:style=Bold" // 14
 ];
-
-font_name = FONTS[11];
 
 // --- Data ---
 PIECE_DATA = [
@@ -75,11 +77,26 @@ function find_piece_index(name) = [
 ];
 
 if (piece_to_generate == "All") {
-  // If "All" is selected, loop through and render every piece.
   spacing = 35;
-  for (i = [0 : len(PIECE_DATA) - 1]) {
-    translate([i * spacing, 0, 0]) {
-      shogi_piece_from_index(i);
+  if (render_all_fonts) {
+    for (f_idx = [0 : len(FONTS) - 1]) {
+      current_font = FONTS[f_idx];
+      translate([0, 0, f_idx * font_row_spacing]) {
+        translate([-20, 0, 15]) {
+            //rotate([90,0,0]) text(current_font, size=3, halign="left", valign="center");
+        }
+        for (i = [0 : len(PIECE_DATA) - 1]) {
+          translate([i * spacing, 0, 0]) {
+            shogi_piece_from_index(i, current_font);
+          }
+        }
+      }
+    }
+  } else {
+    for (i = [0 : len(PIECE_DATA) - 1]) {
+      translate([i * spacing, 0, 0]) {
+        shogi_piece_from_index(i, FONTS[font_choice]);
+      }
     }
   }
 } else {
@@ -88,7 +105,7 @@ if (piece_to_generate == "All") {
   
   if (len(indices) > 0) {
     // If found, render the piece at the first matching index.
-    shogi_piece_from_index(indices[0]);
+    shogi_piece_from_index(indices[0], FONTS[font_choice]);
   } else {
     // If not found, show an error.
     echo("Error: Piece not found.");
@@ -96,9 +113,9 @@ if (piece_to_generate == "All") {
 }
 
 // --- Modules & Functions ---
-module shogi_piece_from_index(index) {
+module shogi_piece_from_index(index, font_to_use) {
   d=PIECE_DATA[index]; k=KANJI_DATA[index];
-  shogi_piece(H=d[1],W=d[2],T=d[3],kanji_unpromoted=k[1],kanji_promoted=k[2],kanji_base=len(k)>3?k[3]:"");
+  shogi_piece(H=d[1],W=d[2],T=d[3],kanji_unpromoted=k[1],kanji_promoted=k[2],kanji_base=len(k)>3?k[3]:"", font_name_param=font_to_use);
 }
 
 module sanded_piece_body(W,H,T, offset_val) {
@@ -112,7 +129,7 @@ module sanded_piece_body(W,H,T, offset_val) {
   }
 }
 
-module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted, kanji_base) {
+module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted, kanji_base, font_name_param) {
   // This internal module creates the text geometry, rotated, at the origin.
   module text_geometry_at_origin(is_promoted) {
     txt = is_promoted ? kanji_promoted : kanji_unpromoted;
@@ -139,22 +156,22 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted, kanji_base) {
                   // --- Vertical Text and Sizing Logic ---
                   if (len(txt) == 2) {
                     size = H * 0.3; spacing = size * two_char_vertical_spacing_factor;
-                    translate([0,spacing,0]) text(str(txt[0]),size=size,font=font_name,halign="center",valign="center");
-                    translate([0,-spacing,0]) text(str(txt[1]),size=size,font=font_name,halign="center",valign="center");
+                    translate([0,spacing,0]) text(str(txt[0]),size=size,font=font_name_param,halign="center",valign="center");
+                    translate([0,-spacing,0]) text(str(txt[1]),size=size,font=font_name_param,halign="center",valign="center");
                   } else {
                     size = H * 0.35;
-                    text(txt,size=size,font=font_name,halign="center",valign="center");
+                    text(txt,size=size,font=font_name_param,halign="center",valign="center");
                   }
                 }
               } else {
                 // --- Vertical Text and Sizing Logic (for promoted text, no horizontal flip) ---
                 if (len(txt) == 2) {
                   size = H * 0.3; spacing = size * two_char_vertical_spacing_factor;
-                  translate([0,spacing,0]) text(str(txt[0]),size=size,font=font_name,halign="center",valign="center");
-                  translate([0,-spacing,0]) text(str(txt[1]),size=size,font=font_name,halign="center",valign="center");
+                  translate([0,spacing,0]) text(str(txt[0]),size=size,font=font_name_param,halign="center",valign="center");
+                  translate([0,-spacing,0]) text(str(txt[1]),size=size,font=font_name_param,halign="center",valign="center");
                 } else {
                   size = H * 0.35;
-                  text(txt,size=size,font=font_name,halign="center",valign="center");
+                  text(txt,size=size,font=font_name_param,halign="center",valign="center");
                 }
               }
             }
@@ -175,7 +192,7 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted, kanji_base) {
       // The text will be extruded from Z=-sanding_offset down to Z=-sanding_offset - text_recess_depth.
       translate([0, 0, sanding_offset * 2 - text_recess_depth]) {
         linear_extrude(height = text_recess_depth, convexity = 10) {
-          text(kanji_base, size = base_text_size, font = font_name, halign = "center", valign = "center");
+          text(kanji_base, size = base_text_size, font = font_name_param, halign = "center", valign = "center");
         }
       }
     }
@@ -200,9 +217,9 @@ module shogi_piece(W, H, T, kanji_unpromoted, kanji_promoted, kanji_base) {
       if (create_recesses) {
         // Render the piece with recessed text by subtracting the text geometry.
         difference() {
-            #sanded_piece_body(W,H,T, sanding_offset);
-            translate(pos_front) text_geometry_at_origin(is_promoted = false);
-            translate(pos_back) text_geometry_at_origin(is_promoted = true);
+            sanded_piece_body(W,H,T, sanding_offset);
+            translate(pos_front) text_geometry_at_origin(false);
+            translate(pos_back) text_geometry_at_origin(true);
             base_text_geometry(W, H, T, kanji_base);
         }
       } else {
