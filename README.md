@@ -1,6 +1,12 @@
 # Shogi 3D Print
 
+![Shogi Pieces Circle](IMG_circle.jpeg)
+
 This project is an effort to model Shogi (Japanese Chess) game pieces for 3D printing using OpenSCAD. The goal is to generate accurately shaped pieces with recessed Kanji characters for multi-material printing.
+
+## Usage
+
+The `gemini.scad` file contains the OpenSCAD script. Please refer to the comments within `gemini.scad` for detailed instructions on how to use the Customizer to select and export individual pieces or specific parts (body, unpromoted text, promoted text) for multi-material 3D printing.
 
 ## Design Guides and Data Source
 
@@ -24,6 +30,11 @@ Here are examples of the generated Shogi pieces:
 
 ![Side View Example](img-side.jpeg)
 
-## Usage
+## Gallery
 
-The `gemini.scad` file contains the OpenSCAD script. Please refer to the comments within `gemini.scad` for detailed instructions on how to use the Customizer to select and export individual pieces or specific parts (body, unpromoted text, promoted text) for multi-material 3D printing.
+| | |
+|:---:|:---:|
+| ![Osho](IMG_osho.jpeg) | ![Side View](IMG_side.jpeg) |
+| ![Regular Pieces](IMG_regular.jpeg) | ![Promoted Pieces](IMG_promoted.jpeg) |
+| ![Side Stand](IMG_side_stand.jpeg) | ![On Board](IMG_onboard.jpeg) |
+| ![On Board Promoted](IMG_onboard_promoted.jpeg) | |
